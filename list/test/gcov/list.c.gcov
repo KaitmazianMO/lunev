@@ -1,0 +1,192 @@
+        -:    0:Source:../../src/list.c
+        -:    0:Graph:list.gcno
+        -:    0:Data:list.gcda
+        -:    0:Runs:1
+        -:    1:#include "list.h"
+        -:    2:#include "list_impl.h"
+        -:    3:
+        -:    4:#include <stdlib.h>
+        -:    5:
+        -:    6:#define SIZE(list)  (list->size)
+        -:    7:#define HEAD(list)  (list->ghost.next)
+        -:    8:#define TAIL(list)  (list->ghost.prev)
+        -:    9:
+        -:   10:static list_allocator ALLOCATOR = calloc;
+        -:   11:
+        -:   12:static struct list_node *node_create(const void *data);
+        -:   13:
+        1:   14:void node_set_data(struct list_node *node, const void *data) {
+        1:   15:    if (node) {
+        1:   16:        node->data = (void *)data;
+        -:   17:    }
+        1:   18:}
+        -:   19:
+        3:   20:void *node_data(struct list_node *node) {
+        3:   21:    if (node) {
+        2:   22:        return node->data; 
+        -:   23:    }
+        1:   24:    return NULL;
+        -:   25:}
+        -:   26:
+        2:   27:struct list_node *node_next(struct list_node *node) {
+        2:   28:    if (node) {
+        1:   29:        return node->next;
+        -:   30:    }
+        1:   31:    return NULL; 
+        -:   32:}
+        -:   33:
+        2:   34:struct list_node *node_prev(struct list_node *node) {
+        2:   35:    if (node) {
+        1:   36:        return node->prev;
+        -:   37:    }
+        1:   38:    return NULL; 
+        -:   39:}
+        -:   40:
+        1:   41:struct list *list_create() {
+        1:   42:    struct list *this = ALLOCATOR(1, sizeof(*this));
+        1:   43:    if (!this) {
+    #####:   44:        return NULL;
+        -:   45:    }
+        -:   46:    
+        1:   47:    this->ghost.next = 
+        1:   48:    this->ghost.prev =
+        1:   49:    &this->ghost;
+        1:   50:    this->size = 0;
+        1:   51:    return this;
+        -:   52:}
+        -:   53:
+        1:   54:void list_destroy(struct list *this) {
+        1:   55:    if (this && SIZE(this)) {
+    #####:   56:        const struct list_node *tail = TAIL(this);
+    #####:   57:        struct list_node *node = HEAD(this),
+    #####:   58:                         *tmp = NULL;
+    #####:   59:        while (node != tail) {
+    #####:   60:            tmp = node->next;
+    #####:   61:            free(node);
+    #####:   62:            node = tmp;
+        -:   63:        }
+        -:   64:    }
+        1:   65:    free(this);
+        1:   66:}
+        -:   67:
+        2:   68:size_t list_size(struct list *this) {
+        2:   69:    if (this) {
+        1:   70:        return SIZE(this);
+        -:   71:    }
+        1:   72:    return 0;
+        -:   73:}
+        -:   74:
+        2:   75:struct list_node *list_head(const struct list *this) {
+        2:   76:    if (this) {
+        1:   77:        return HEAD(this);  
+        -:   78:    }
+        1:   79:    return NULL;
+        -:   80:}
+        -:   81:
+        2:   82:struct list_node *list_tail(const struct list *this) {
+        2:   83:    if (this) {
+        1:   84:        return HEAD(this);  
+        -:   85:    }
+        1:   86:    return NULL;
+        -:   87:}
+        -:   88:
+        1:   89:struct list_node *list_insert_front(struct list *this, const void *data) {
+        1:   90:    if (this) {
+    #####:   91:        return list_insert_before(this, HEAD(this), data);
+        -:   92:    }
+        1:   93:    return NULL;
+        -:   94:}
+        -:   95:
+        1:   96:struct list_node *list_insert_back(struct list *this, const void *data) {
+        1:   97:    if (this) {
+    #####:   98:        return list_insert_after(this, TAIL(this), data);
+        -:   99:    }
+        1:  100:    return NULL;
+        -:  101:}
+        -:  102:
+        -:  103:
+        1:  104:struct list_node *list_insert_after(struct list *this, struct list_node *node, const void *data) {
+       1*:  105:    if (!this || !node) {
+        1:  106:        return NULL;
+        -:  107:    }
+        -:  108:
+    #####:  109:    struct list_node *new_node = node_create(data); 
+    #####:  110:    if (!new_node) {
+    #####:  111:        return NULL;
+        -:  112:    }
+        -:  113:    
+    #####:  114:    new_node->prev   = node;
+    #####:  115:    new_node->next   = node->next;
+    #####:  116:    node->next->prev = new_node;
+    #####:  117:    node->next       = new_node;
+    #####:  118:    return new_node;
+        -:  119:}
+        -:  120:
+        1:  121:struct list_node *list_insert_before(struct list *this, struct list_node *node, const void *data) {
+       1*:  122:    if (!this || !node) {
+        1:  123:        return NULL;
+        -:  124:    }
+        -:  125:
+    #####:  126:    struct list_node *new_node = node_create(data); 
+    #####:  127:    if (!new_node) {
+    #####:  128:        return NULL;
+        -:  129:    }
+        -:  130:    
+    #####:  131:    new_node->next   = node;
+    #####:  132:    new_node->prev   = node->prev;
+    #####:  133:    node->prev->next = new_node;
+    #####:  134:    node->prev       = new_node;
+    #####:  135:    return new_node;
+        -:  136:}
+        -:  137:
+        1:  138:struct list_node *list_erase(struct list *this, struct list_node *begin, struct list_node *end) {
+       1*:  139:    if (!this || !SIZE(this) || !begin || !end) {
+        1:  140:        return NULL;
+        -:  141:    }
+        -:  142:
+    #####:  143:    begin->prev->next = end;
+    #####:  144:    end->prev = begin->prev;
+        -:  145:    
+    #####:  146:    struct list_node *tmp = NULL;
+    #####:  147:    struct list_node *node = begin;
+    #####:  148:    while (node != end) {
+    #####:  149:        tmp = node->next;
+    #####:  150:        free(node);
+    #####:  151:        node = tmp;
+        -:  152:    } 
+        -:  153:
+    #####:  154:    return end;    
+        -:  155:}
+        -:  156:
+        1:  157:int list_for_each(const struct list *this, list_call_back cb, void *cb_context) {
+       1*:  158:    if (!this || !cb) {
+        1:  159:        return 0;
+        -:  160:    }
+        -:  161:
+    #####:  162:    const struct list_node *tail = TAIL(this);
+    #####:  163:    struct list_node *node = HEAD(this);
+    #####:  164:    while (node != tail) {
+    #####:  165:        if (cb(node->data, cb_context) == 0) {
+    #####:  166:            return 0;
+        -:  167:        }
+        -:  168:    }
+        -:  169:
+    #####:  170:    return 1;
+        -:  171:}
+        -:  172:
+    #####:  173:static struct list_node *node_create(const void *data) {
+    #####:  174:    struct list_node *node = ALLOCATOR (1, sizeof(*node));
+    #####:  175:    if (node) {
+    #####:  176:        node->data = (void *)data;
+        -:  177:    }
+    #####:  178:    return node;
+        -:  179:}
+        -:  180:
+        1:  181:list_allocator list_set_allocator(list_allocator new_allocator) {
+        1:  182:    list_allocator old_alloc = ALLOCATOR;
+        1:  183:    if (new_allocator) {
+    #####:  184:        ALLOCATOR = new_allocator;
+        -:  185:    }
+        -:  186:
+        1:  187:    return old_alloc;
+        -:  188:}

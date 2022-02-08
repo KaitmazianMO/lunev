@@ -13,7 +13,7 @@ static struct list_node *node_create(const void *data);
 
 void node_set_data(struct list_node *node, const void *data) {
     if (node) {
-        node->data = data;
+        node->data = (void *)data;
     }
 }
 
@@ -31,7 +31,7 @@ struct list_node *node_next(struct list_node *node) {
     return NULL; 
 }
 
-struct list_node *node_next(struct list_node *node) {
+struct list_node *node_prev(struct list_node *node) {
     if (node) {
         return node->prev;
     }
@@ -85,6 +85,21 @@ struct list_node *list_tail(const struct list *this) {
     }
     return NULL;
 }
+
+struct list_node *list_insert_front(struct list *this, const void *data) {
+    if (this) {
+        return list_insert_before(this, HEAD(this), data);
+    }
+    return NULL;
+}
+
+struct list_node *list_insert_back(struct list *this, const void *data) {
+    if (this) {
+        return list_insert_after(this, TAIL(this), data);
+    }
+    return NULL;
+}
+
 
 struct list_node *list_insert_after(struct list *this, struct list_node *node, const void *data) {
     if (!this || !node) {
@@ -145,8 +160,7 @@ int list_for_each(const struct list *this, list_call_back cb, void *cb_context) 
     }
 
     const struct list_node *tail = TAIL(this);
-    struct list_node *node = HEAD(this),
-                     *tmp = NULL;
+    struct list_node *node = HEAD(this);
     while (node != tail) {
         if (cb(node->data, cb_context) == 0) {
             return 0;
@@ -159,13 +173,13 @@ int list_for_each(const struct list *this, list_call_back cb, void *cb_context) 
 static struct list_node *node_create(const void *data) {
     struct list_node *node = ALLOCATOR (1, sizeof(*node));
     if (node) {
-        node->data = data;
+        node->data = (void *)data;
     }
     return node;
 }
 
-list_allocator *list_set_allocator(list_allocator *new_allocator) {
-    list_allocator *old_alloc = ALLOCATOR;
+list_allocator list_set_allocator(list_allocator new_allocator) {
+    list_allocator old_alloc = ALLOCATOR;
     if (new_allocator) {
         ALLOCATOR = new_allocator;
     }
