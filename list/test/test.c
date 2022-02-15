@@ -47,25 +47,6 @@ int initialized_empty_list_test() {
     return EXECUTABLE_TEST_FAILED ? TEST_FAILED : TEST_PASSED;
 }
 
-#define ASSERT_NOT_DEATH(call) {  \
-    pid_t child = fork(); \
-    switch (child) {  \
-        case -1: {  \
-            return TEST_ENDED_PREMATURELY;  \
-        }   \
-        case 0: {    \
-            call; \
-            exit(TEST_PASSED);  \
-        } break;    \
-        int status = 0;    \
-        waitpid(child, &status, 0);   \
-        if (WIFSIGNALED(status)) {   \
-            PRINT_SEGFAULT("ASSERTION NOT DEATH FAILED %s (%d)\n", #call, WEXITSTATUS(status));    \
-            N_ERRORS++; \
-        }   \
-    }   \
-}
-
 int null_argument_test() {
         ASSERT_NOT_DEATH(kill(getpid(), SIGSEGV));
     {
