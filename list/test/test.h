@@ -24,25 +24,25 @@ int N_ERRORS = 0;
 int EXECUTABLE_TEST_FAILED = 0;
 
 #define PRINT(...)               fprintf(stderr, __VA_ARGS__)
-#define PRINT_OK(fmt, ...)       fprintf(stderr, COLOR_OK fmt COLOR_OK, __VA_ARGS__)
+#define PRINT_OK(fmt, ...)       fprintf(stderr, COLOR_OK fmt COLOR_RESET, __VA_ARGS__)
 #define PRINT_ERROR(fmt, ...)    fprintf(stderr, COLOR_ERROR fmt COLOR_RESET, __VA_ARGS__)
 #define PRINT_SEGFAULT(fmt, ...) fprintf(stderr, COLOR_SEGFAULT fmt COLOR_RESET, __VA_ARGS__)
+
+#define COUNT_ERROR { N_ERRORS++; EXECUTABLE_TEST_FAILED = 1; }
 
 #pragma GCC diagnostic ignored "-Wformat-zero-length"
 #define ASSERT_EQUAL(L, R, ...) \
     if (L != R) {   \
         PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s != %s\n", __FUNCTION__, #L, #R);    \
         if (PRINT(__VA_ARGS__) != 0) PRINT("\n");  \
-        N_ERRORS++; \
-        EXECUTABLE_TEST_FAILED = 1;   \
+        COUNT_ERROR   \
     }
 
 #define ONE_ARG_FUNCTION_ASSERT_EQUAL(L, func, arg1)  \
     if (L != func(arg1)) {   \
         PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s(%s) != %s\n", __FUNCTION__, #func, #arg1, #L);    \
         PRINT_ERROR("Function %s works bad with arg %s\n", #func, #arg1);    \
-        N_ERRORS++; \
-        EXECUTABLE_TEST_FAILED = 1;   \
+        COUNT_ERROR    \
     }
 
 #define TWO_ARG_FUNCTION_ASSERT_EQUAL(L, func, arg1, arg2, ...)  \
@@ -50,8 +50,7 @@ int EXECUTABLE_TEST_FAILED = 0;
         PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s(%s, %s) != %s\n", __FUNCTION__, #func, #arg1, #arg2, #L);    \
         PRINT_ERROR("Function %s works bad with args %s and %s\n", #func, #arg1, #arg2);    \
         if (PRINT(__VA_ARGS__) != 0) PRINT("\n");    \
-        N_ERRORS++; \
-        EXECUTABLE_TEST_FAILED = 1;   \
+        COUNT_ERROR   \
     }
 
 #define RUN_TEST(test_func) {\
@@ -80,10 +79,10 @@ int EXECUTABLE_TEST_FAILED = 0;
         waitpid(child, &status, 0);   \
         if (WIFSIGNALED(status)) {   \
             PRINT_SEGFAULT("ASSERTION EQUAL FAILED with segfault (%s == %s)\n", #L, #R);    \
-            N_ERRORS++; \
+            COUNT_ERROR \
         } else if (WEXITSTATUS(status) == TEST_FAILED) { \
-            N_ERRORS++; \
             PRINT_ERROR("ASSERTION EQUAL FAILED %s != %s\n", #L, #R);   \
+            COUNT_ERROR \
         }   \
     }   \
 }
@@ -98,11 +97,15 @@ int EXECUTABLE_TEST_FAILED = 0;
             call; \
             exit(TEST_PASSED);  \
         } break;    \
-        int status = 0;    \
-        waitpid(child, &status, 0);   \
-        if (WIFSIGNALED(status)) {   \
-            PRINT_SEGFAULT("ASSERTION NOT DEATH FAILED %s (%d)\n", #call, WEXITSTATUS(status));    \
-            N_ERRORS++; \
+        default: {   \
+            int status = 0;    \
+            if (waitpid(child, &status, 0) == -1) { \
+                return TEST_ENDED_PREMATURELY;    \
+            }   \
+            if (WIFSIGNALED(status)) {   \
+                PRINT_SEGFAULT("ASSERTION NOT DEATH FAILED %s (%d)\n", #call, WEXITSTATUS(status));    \
+                COUNT_ERROR \
+            }   \
         }   \
     }   \
 }
