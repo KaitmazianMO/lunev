@@ -1,34 +1,27 @@
 CC        := gcc
-CCFLAGS   = -Wall -Wextra -Wpedantic -Werror
-DBG_FLAGS := -g -O0 --coverage -MD 
+CCFLAGS   = -Wall -Wextra -Werror
 
+LIB_NAME := list.a
 BUILD_DIR := build
-LIB_DIR   := $(BUILD_DIR)/lib
-OBJ_DIR   := $(BUILD_DIR)/obj
-TEST_DIR  := $(BUILD_DIR)/test
-GCOV_DIR  := $(TEST_DIR)/gcov
-ALL_DIRS  := $(LIB_DIR) $(OBJ_DIR) $(TEST_DIR) $(GCOV_DIR)
+LIB_INSTALL_DIR := ${BUILD_DIR}/lib
+MAKE_STUFF_DIR  := $(BUILD_DIR)/makestuff/
+PATH_TO_LIB := $(LIB_INSTALL_DIR)/$(LIB_NAME)
 
-LIB_SRC   := $(wildcard src/*.c)  
-TEST_SRC  := $(wildcard test/*.c)
+LIB_SOURCES  := $(wildcard list/*.c)
+TEST_SOURCES := $(wildcard test/*.c)
+ALL_SOURCES  := $(LIB_SOURCES) $(TEST_SOURCES)
+ALL_OBJECTS  := $(ALL_SOURCES:.c=.o)
 
-.PHONY clean
+$(BUILD_DIR)/run_test: $(addprefix $(BUILD_DIR)/, $(TEST_SOURCES:.c=.o)) $(PATH_TO_LIB)
+	$(CC) $^ $(CCFLAGS) -o $@ 
 
-all: dirs test
-
-dirs: $(ALL_DIRS)
-
-$(ALL_DIRS):
-	mkdir -p $@
-
-test: $(TEST_SRC) $(LIB_DIR)/list.a
-	$(CC) $(CCFLAGS) $^ -o $(TEST_DIR)/$@
-
-$(LIB_DIR)/%.a: $(OBJ_DIR)/%.o
+$(PATH_TO_LIB): $(addprefix $(BUILD_DIR)/, $(LIB_SOURCES:.c=.o))
+	mkdir -p $(@D)
 	ar rcs $@ $^
 
-$(OBJ_DIR)/%.o: %.c
-	$(CC) -c $(CCFLAGS) $^ $(OBJ_DIR)/$@
+$(addprefix $(BUILD_DIR)/, $(ALL_OBJECTS)): $(BUILD_DIR)/%.o: %.c
+	mkdir -p $(@D)
+	$(CC) -MMD -MF$(subst .o,.d, $@) -MT$@ $(CCFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
