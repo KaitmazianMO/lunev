@@ -1,6 +1,6 @@
 #include "test.h"
-#include "../src/list.h"
-#include "../src/list_impl.h"
+#include "../list/list.h"
+#include "../list/list_impl.h"
 
 void run_tests();
 int initialized_empty_list_test();
