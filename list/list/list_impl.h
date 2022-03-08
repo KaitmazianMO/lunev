@@ -11,5 +11,4 @@ struct list {
     size_t size;
 };
 
-
 #endif

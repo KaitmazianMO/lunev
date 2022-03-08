@@ -1,9 +1,8 @@
 CC        := gcc
-CCFLAGS   = -Wall -Wextra -Werror
+CCFLAGS   = -Wall -Wextra -Werror $($(@F)_FLAGS)
+test.o_FLAGS = -Wno-unused-variable -Wno-unused-value -Wno-unused-parameter
 
-LIB_NAME := list.a
 BUILD_DIR := build
-LIB_INSTALL_DIR := ${BUILD_DIR}/lib
 MAKE_STUFF_DIR  := $(BUILD_DIR)/makestuff/
 PATH_TO_LIB := $(LIB_INSTALL_DIR)/$(LIB_NAME)
 
@@ -11,6 +10,9 @@ LIB_SOURCES  := $(wildcard list/*.c)
 TEST_SOURCES := $(wildcard test/*.c)
 ALL_SOURCES  := $(LIB_SOURCES) $(TEST_SOURCES)
 ALL_OBJECTS  := $(ALL_SOURCES:.c=.o)
+
+LIB_NAME := list.a
+LIB_INSTALL_DIR := ${BUILD_DIR}/lib
 
 $(BUILD_DIR)/run_test: $(addprefix $(BUILD_DIR)/, $(TEST_SOURCES:.c=.o)) $(PATH_TO_LIB)
 	$(CC) $^ $(CCFLAGS) -o $@ 

@@ -1,111 +1,87 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include <wait.h>
 
-#define TEST_FAILED             0
-#define TEST_PASSED             1
-#define TEST_ENDED_PREMATURELY  2
+#define TEST_N_TESTS            $__test_n_test
+#define TEST_REPORT_ARR         $__reports
+#define TEST_REPORT_ARR_COUNTER $__i
+#define TEST_N_TESTS_VERIFYIER  $__verifyier
 
-#define COLOR_RED     "\x1b[31m"
-#define COLOR_GREEN   "\x1b[32m"
-#define COLOR_YELLOW  "\x1b[33m"
-#define COLOR_BLUE    "\x1b[34m"
-#define COLOR_MAGENTA "\x1b[35m"
-#define COLOR_CYAN    "\x1b[36m"
-#define COLOR_RESET   "\x1b[0m"
+#define TEST_HEAD(n)                    \
+    char *TEST_REPORT_ARR[n];           \
+    int  TEST_REPORT_ARR_COUNTER = 0;   \
+    const int TEST_N_TESTS = n;         \
+    int TEST_N_TESTS_VERIFYIER = 0
 
-#define COLOR_OK       COLOR_GREEN
-#define COLOR_ERROR    COLOR_RED
-#define COLOR_SEGFAULT COLOR_MAGENTA
+#define __TEST_BEGIN()                   \
+++TEST_N_TESTS_VERIFYIER;                \
+do {                                     
 
-int N_ERRORS = 0;
-int EXECUTABLE_TEST_FAILED = 0;
+#define __TEST_END()                     \
+} while(0)
 
-#define PRINT(...)               fprintf(stderr, __VA_ARGS__)
-#define PRINT_OK(fmt, ...)       fprintf(stderr, COLOR_OK fmt COLOR_RESET, __VA_ARGS__)
-#define PRINT_ERROR(fmt, ...)    fprintf(stderr, COLOR_ERROR fmt COLOR_RESET, __VA_ARGS__)
-#define PRINT_SEGFAULT(fmt, ...) fprintf(stderr, COLOR_SEGFAULT fmt COLOR_RESET, __VA_ARGS__)
+#define TEST_SUMMARIZE()                                                                    \
+    if (TEST_N_TESTS_VERIFYIER != TEST_N_TESTS) {                                           \
+        fprintf(stderr, "Tests verifyer failed in %s.\n"                                    \
+            "There is %d test\n", __func__, TEST_N_TESTS_VERIFYIER);                        \
+        return;                                                                             \
+    }                                                                                       \
+    int i = 0;                                                                              \
+    for (i = 0; i < TEST_REPORT_ARR_COUNTER; ++i) {                                         \
+        fprintf(stderr, "%s:%s\n", __func__, TEST_REPORT_ARR[i]);                           \
+    }                                                                                       \
+    if (i == 0) {                                                                           \
+        fprintf(stderr, "\x1b[32m" "%s: passed all %d tests.\n" "\x1b[0m",                  \
+            __func__, TEST_N_TESTS);                                                        \
+    } else {                                                                                \
+        fprintf(stderr, "\x1b[31m" "%s: failed %d of %d tests.\n" "\x1b[0m",                \
+            __func__, TEST_REPORT_ARR_COUNTER, TEST_N_TESTS);                               \
+    }                                                                                       \
 
-#define COUNT_ERROR { N_ERRORS++; EXECUTABLE_TEST_FAILED = 1; }
 
-#pragma GCC diagnostic ignored "-Wformat-zero-length"
-#define ASSERT_EQUAL(L, R, ...) \
-    if (L != R) {   \
-        PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s != %s\n", __FUNCTION__, #L, #R);    \
-        if (PRINT(__VA_ARGS__) != 0) PRINT("\n");  \
-        COUNT_ERROR   \
+#define __TEST_QUIT break
+#define __TEST_WRITE_REPORT(test, str) TEST_REPORT_ARR[TEST_REPORT_ARR_COUNTER++] = test  ":"  str; __TEST_QUIT       
+#define __TEST_ADD_ERROR(test, str)    __TEST_WRITE_REPORT(test, str)
+#define __TEST_EXPECT_NOT(test, cond, str)                                                    \
+    if(cond) {                                                                                \
+        __TEST_WRITE_REPORT(test, "Unexpected condition(" #cond ") happen. " str);            \
     }
-
-#define ONE_ARG_FUNCTION_ASSERT_EQUAL(L, func, arg1)  \
-    if (L != func(arg1)) {   \
-        PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s(%s) != %s\n", __FUNCTION__, #func, #arg1, #L);    \
-        PRINT_ERROR("Function %s works bad with arg %s\n", #func, #arg1);    \
-        COUNT_ERROR    \
-    }
-
-#define TWO_ARG_FUNCTION_ASSERT_EQUAL(L, func, arg1, arg2, ...)  \
-    if (L != func(arg1, arg2)) {   \
-        PRINT_ERROR("%s: ASSERTION EQUAL FAILED %s(%s, %s) != %s\n", __FUNCTION__, #func, #arg1, #arg2, #L);    \
-        PRINT_ERROR("Function %s works bad with args %s and %s\n", #func, #arg1, #arg2);    \
-        if (PRINT(__VA_ARGS__) != 0) PRINT("\n");    \
-        COUNT_ERROR   \
-    }
-
-#define RUN_TEST(test_func) {\
-    N_ERRORS = 0;   \
-    int test_res = test_func(); \
-    if (test_res == TEST_PASSED || test_res == TEST_ENDED_PREMATURELY) {   \
-        PRINT_OK("Passed %s\n", #test_func);    \
-    } else {    \
-        PRINT_ERROR("Failed %s(%d)\n", #test_func, N_ERRORS);    \
-    }   \
+    
+#define __ASSERT_NOT_DEATH(test, action) {                                          \
+    pid_t child = fork();                                                           \
+    __TEST_EXPECT_NOT(test, child == -1, "Fork failed.");                           \
+    if (child == 0) {                                                               \
+        action;                                                                     \
+        exit(EXIT_SUCCESS);                                                         \
+    }                                                                               \
+    int status = 0;                                                                 \
+    __TEST_EXPECT_NOT(test, waitpid(child, &status, 0) == -1, "Waitpid failed.");   \
+    if (WIFSIGNALED(status)) {                                                      \
+        __TEST_ADD_ERROR(test, #action "precedes the fall.");                       \
+    } else {                                                                        \
+        action;                                                                     \
+    }                                                                               \
 }
 
-#define ASSERT_EQUAL_WITHOUT_DEATH(L, R) {  \
-    pid_t child = fork(); \
-    switch (child) {  \
-        case -1: {  \
-            return TEST_ENDED_PREMATURELY;  \
-        }   \
-        case 0: {   \
-            if (L != R) {   \
-                exit(TEST_FAILED);    \
-            }   \
-            exit(TEST_PASSED);  \
-        } break;  \
-        int status = 0; \
-        waitpid(child, &status, 0);   \
-        if (WIFSIGNALED(status)) {   \
-            PRINT_SEGFAULT("ASSERTION EQUAL FAILED with segfault (%s == %s)\n", #L, #R);    \
-            COUNT_ERROR \
-        } else if (WEXITSTATUS(status) == TEST_FAILED) { \
-            PRINT_ERROR("ASSERTION EQUAL FAILED %s != %s\n", #L, #R);   \
-            COUNT_ERROR \
-        }   \
-    }   \
-}
+#define __ASSERT_EQ(test, l, r)                           \
+    __ASSERT_NOT_DEATH(test, l)                           \
+    __ASSERT_NOT_DEATH(test, r)                           \
+    if (l != r) {                                         \
+        __TEST_ADD_ERROR(test, "Failed " #l " == " #r);   \
+    }
 
-#define ASSERT_NOT_DEATH(call) {  \
-    pid_t child = fork(); \
-    switch (child) {  \
-        case -1: {  \
-            return TEST_ENDED_PREMATURELY;  \
-        }   \
-        case 0: {    \
-            call; \
-            exit(TEST_PASSED);  \
-        } break;    \
-        default: {   \
-            int status = 0;    \
-            if (waitpid(child, &status, 0) == -1) { \
-                return TEST_ENDED_PREMATURELY;    \
-            }   \
-            if (WIFSIGNALED(status)) {   \
-                PRINT_SEGFAULT("ASSERTION NOT DEATH FAILED %s (%d)\n", #call, WEXITSTATUS(status));    \
-                COUNT_ERROR \
-            }   \
-        }   \
-    }   \
-}
+#define ASSERT_EQ(l, r)                     \
+    __TEST_BEGIN()                          \
+    __ASSERT_EQ("ASSERT_EQ", l, r);         \
+    __TEST_END()
+
+#define EXPECT_NOT(cond, com)                   \
+    __TEST_BEGIN()                              \
+    __TEST_EXPECT_NOT("EXPECT_NOT", cond, com); \
+    __TEST_END()
+
+#define ASSERT_NOT_DEATH(action)                    \
+    __TEST_BEGIN()                                  \
+    __ASSERT_NOT_DEATH("ASSERT_NOT_DEATH", action); \
+    __TEST_END()

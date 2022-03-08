@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 
+#define GHOST(list) (&list->ghost)
 #define SIZE(list)  (list->size)
 #define HEAD(list)  (list->ghost.next)
 #define TAIL(list)  (list->ghost.prev)
@@ -43,20 +44,18 @@ struct list *list_create() {
     if (!this) {
         return NULL;
     }
-    
-    this->ghost.next = 
-    this->ghost.prev =
-    &this->ghost;
+
+    this->ghost.next = &this->ghost; 
+    this->ghost.prev = &this->ghost;
     this->size = 0;
     return this;
 }
 
 void list_destroy(struct list *this) {
     if (this && SIZE(this)) {
-        const struct list_node *tail = TAIL(this);
         struct list_node *node = HEAD(this),
                          *tmp = NULL;
-        while (node != tail) {
+        while (node != GHOST(this)) {
             tmp = node->next;
             free(node);
             node = tmp;
@@ -81,7 +80,7 @@ struct list_node *list_head(const struct list *this) {
 
 struct list_node *list_tail(const struct list *this) {
     if (this) {
-        return HEAD(this);  
+        return TAIL(this);
     }
     return NULL;
 }
@@ -115,6 +114,7 @@ struct list_node *list_insert_after(struct list *this, struct list_node *node, c
     new_node->next   = node->next;
     node->next->prev = new_node;
     node->next       = new_node;
+    ++SIZE(this);
     return new_node;
 }
 
@@ -132,39 +132,47 @@ struct list_node *list_insert_before(struct list *this, struct list_node *node, 
     new_node->prev   = node->prev;
     node->prev->next = new_node;
     node->prev       = new_node;
+    ++SIZE(this);
     return new_node;
 }
 
-struct list_node *list_erase(struct list *this, struct list_node *begin, struct list_node *end) {
-    if (!this || !SIZE(this) || !begin || !end) {
-        return NULL;
+ void list_erase(struct list *this, struct list_node *node, _Bool safe) {
+    if (!this || !SIZE(this) || !node || node == &this->ghost) {
+        return;
     }
 
-    begin->prev->next = end;
-    end->prev = begin->prev;
-    
-    struct list_node *tmp = NULL;
-    struct list_node *node = begin;
-    while (node != end) {
-        tmp = node->next;
-        free(node);
-        node = tmp;
-    } 
+    if (safe) {
+        _Bool found = 0;
+        struct list_node *list_node = list_head(this);
+        while (list_node != GHOST(this)) {
+            if (list_node == node) { 
+                found = 1;
+                break;
+            }
+            list_node = list_node->next;
+        }
+        if (!found) {
+            return;
+        }
+    }
 
-    return end;    
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
+    free(node);
+    --SIZE(this);
 }
 
 int list_for_each(const struct list *this, list_call_back cb, void *cb_context) {
-    if (!this || !cb) {
+    if (!this || !SIZE(this) || !cb) {
         return 0;
     }
 
-    const struct list_node *tail = TAIL(this);
     struct list_node *node = HEAD(this);
-    while (node != tail) {
+    while (node != GHOST(this)) {
         if (cb(node->data, cb_context) == 0) {
             return 0;
         }
+        node = node->next;
     }
 
     return 1;
@@ -183,6 +191,5 @@ list_allocator list_set_allocator(list_allocator new_allocator) {
     if (new_allocator) {
         ALLOCATOR = new_allocator;
     }
-
     return old_alloc;
 }
