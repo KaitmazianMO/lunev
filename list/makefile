@@ -18,9 +18,9 @@ INCLUDE_FILES       := $(SOURCE_FILES:.c=.h)
 GCOV_COVERAGE_FILES := $(OBJECT_FILES:.o=.gcno)
 DEPENDENCIES        := $(OBJECT_FILES:.o=.d)
 
-.PHONY: clean test coverage
+.PHONY: clean test coverage valgrind
 
-all: | $(BUILD_DIR) $(TARGET)
+all: $(TARGET)
 
 test: $(TARGET)
 	@$(TARGET)
@@ -38,9 +38,6 @@ $(TARGET): $(OBJECT_FILES)
 $(OBJECT_FILES): $(BUILD_DIR)/%.o: %.c
 	mkdir -p $(@D)
 	$(CC) -MD -MF $(@:.o=.d) -MT $@ $(CCFLAGS) -c $< -o $@
-
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
 
 clear_dependensies:
 	find -name *.d | xargs rm -f
