@@ -26,12 +26,11 @@ test: $(TARGET)
 	@$(TARGET)
 
 coverage: test
-	@gcov $(GCOV_COVERAGE_FILES)
+	@mkdir -p $(BUILD_DIR)/gcov && cd $(BUILD_DIR)/gcov && \
+	gcov $(GCOV_COVERAGE_FILES)
 
 valgrind: $(TARGET)
-	valgrind --leak-check=full $(TARGET)
-
-VPATH = $(BUILD_DIR) 
+	@valgrind --leak-check=full $(TARGET)
 
 $(TARGET): $(OBJECT_FILES)
 	$(CC) $^ $(CCFLAGS) -o $@ 
