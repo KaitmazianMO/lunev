@@ -30,7 +30,7 @@ coverage: test
 	gcov $(GCOV_COVERAGE_FILES)
 
 valgrind: $(TARGET)
-	@valgrind --show-leak-kinds=all --leak-check=full $(TARGET)
+	@valgrind --child-silent-after-fork=yes --show-leak-kinds=all --leak-check=full $(TARGET)
 
 $(TARGET): $(OBJECT_FILES)
 	$(CC) $^ $(CCFLAGS) -o $@ 
@@ -38,9 +38,6 @@ $(TARGET): $(OBJECT_FILES)
 $(OBJECT_FILES): $(BUILD_DIR)/%.o: %.c
 	mkdir -p $(@D)
 	$(CC) -MD -MF $(@:.o=.d) -MT $@ $(CCFLAGS) -c $< -o $@
-
-clear_dependensies:
-	find -name *.d | xargs rm -f
 
 $(DEPENDENCIES): $(OBJECT_FILES)
 
