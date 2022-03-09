@@ -137,7 +137,7 @@ struct list_node *list_insert_before(struct list *this, struct list_node *node, 
 }
 
  void list_erase(struct list *this, struct list_node *node, _Bool safe) {
-    if (!this || !SIZE(this) || !node || node == &this->ghost) {
+    if (!this || !SIZE(this) || !node) {
         return;
     }
 

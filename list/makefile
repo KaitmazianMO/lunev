@@ -30,7 +30,7 @@ coverage: test
 	gcov $(GCOV_COVERAGE_FILES)
 
 valgrind: $(TARGET)
-	@valgrind --leak-check=full $(TARGET)
+	@valgrind --show-leak-kinds=all --leak-check=full $(TARGET)
 
 $(TARGET): $(OBJECT_FILES)
 	$(CC) $^ $(CCFLAGS) -o $@ 

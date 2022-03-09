@@ -240,13 +240,12 @@ void *rofl_allocator(size_t n, size_t sz) {
 }
 
 void memory_allocation_failed_test() {
-    TEST_HEAD(5);
+    TEST_HEAD(4);
 
-    struct list *list = list_create();
-    EXPECT_NOT(list == NULL, "List allocation failed.");
-    
+
     list_allocator old_allocator = list_set_allocator(rofl_allocator);
-    ASSERT_EQ(list_create(), NULL);
+    struct list *list = NULL;
+    ASSERT_EQ((list = list_create()), NULL);
     ASSERT_EQ(list_insert_front(list, NULL), NULL);
     ASSERT_EQ(list_insert_back(list, NULL), NULL);
     ASSERT_EQ(list_size(list), 0u);
