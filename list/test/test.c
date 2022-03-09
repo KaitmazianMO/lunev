@@ -231,6 +231,7 @@ void for_each_test() {
 
     list_for_each(list, premature_ending_action, &sum);
 
+    list_destroy(list);
     TEST_SUMMARIZE();
 }
 

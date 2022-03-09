@@ -1,42 +1,54 @@
 CC        := gcc
-CCFLAGS   = -Wall -Wextra -Werror $($(@F)_FLAGS)
+CCFLAGS   = -Wall -Wextra -Werror --coverage $($(@F)_FLAGS)
 test.o_FLAGS = -Wno-unused-variable -Wno-unused-value -Wno-unused-parameter
 
 TARGET := run_tests
 
 PROJECT_DIR   := $(shell pwd)
 BUILD_DIR     := $(PROJECT_DIR)/build
-MAKE_DIR      := $(BUILD_DIR)/makestuff
-DIRS_TO_BUILD = list test
+DIRS_TO_BUILD  = list test
+TARGET        := $(addprefix $(BUILD_DIR)/, $(TARGET))   
 
 SOURCE_DIRS := $(foreach dir, $(DIRS_TO_BUILD), $(addprefix $(PROJECT_DIR)/, $(dir)))
 OBJECT_DIRS := $(foreach dir, $(DIRS_TO_BUILD), $(addprefix $(BUILD_DIR)/, $(dir)))
 
-SOURCE_FILES  := $(foreach dir, $(SOURCE_DIRS), $(wildcard $(dir)/*.c))
-OBJECT_FILES  := $(subst $(PROJECT_DIR),$(BUILD_DIR),$(SOURCE_FILES:.c=.o))
-INCLUDE_FILES := $(SOURCE_FILES:.c=.h)
-DEPENDENCIES  := $(OBJECT_FILES:.o=.d)
+SOURCE_FILES        := $(foreach dir, $(SOURCE_DIRS), $(wildcard $(dir)/*.c))
+OBJECT_FILES        := $(subst $(PROJECT_DIR),$(BUILD_DIR),$(SOURCE_FILES:.c=.o))
+INCLUDE_FILES       := $(SOURCE_FILES:.c=.h)
+GCOV_COVERAGE_FILES := $(OBJECT_FILES:.o=.gcno)
+DEPENDENCIES        := $(OBJECT_FILES:.o=.d)
 
-all: directories dbg $(TARGET)
+.PHONY: clean test coverage
 
-dbg:
-	echo $(SOURCE_DIRS)
-	echo $(OBJECT_DIRS)
-	echo $(SOURCE_FILES)
-	echo $(OBJECT_FILES)
-	echo $(INCLUDE_FILES)
-	echo $(DEPENDENCIES) 
+all: | $(BUILD_DIR) $(TARGET)
+
+test: $(TARGET)
+	@$(TARGET)
+
+coverage: test
+	@gcov $(GCOV_COVERAGE_FILES)
+
+valgrind: $(TARGET)
+	valgrind --leak-check=full $(TARGET)
+
+VPATH = $(BUILD_DIR) 
 
 $(TARGET): $(OBJECT_FILES)
 	$(CC) $^ $(CCFLAGS) -o $@ 
 
 $(OBJECT_FILES): $(BUILD_DIR)/%.o: %.c
 	mkdir -p $(@D)
-	$(CC) -MMD -MF$($@:.o=.d) -MT$@ $(CCFLAGS) -c $< -o $@
+	$(CC) -MD -MF $(@:.o=.d) -MT $@ $(CCFLAGS) -c $< -o $@
 
-directories:
-	mkdir -p $(BUILD_DIR) $(MAKE_DIR)
-	cd $(BUILD_DIR)
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+clear_dependensies:
+	find -name *.d | xargs rm -f
+
+$(DEPENDENCIES): $(OBJECT_FILES)
+
+include $(DEPENDENCIES)
 
 clean:
 	rm -rf $(BUILD_DIR)
