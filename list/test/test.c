@@ -27,35 +27,6 @@ void run_tests() {
     memory_allocation_failed_test();
 }
 
-void initialized_empty_list_test() {
-    TEST_HEAD(11);
-
-    struct list *list = list_create();
-    EXPECT_NOT(list == NULL, "List allocation failed.");
-    {
-        ASSERT_EQ(list->size, 0);
-        ASSERT_EQ(list->ghost.next, &list->ghost);
-        ASSERT_EQ(list->ghost.prev, &list->ghost);
-    }
-    {
-        ASSERT_EQ(list->size,   list_size(list));
-        ASSERT_EQ(&list->ghost, list_head(list));
-        ASSERT_EQ(&list->ghost, list_tail(list));
-    }
-    {
-        ASSERT_EQ(&list->ghost,     node_next(&list->ghost));
-        ASSERT_EQ(&list->ghost,     node_prev(&list->ghost));
-        ASSERT_EQ(list->ghost.data, node_data(&list->ghost));
-        void *data = (void *)7;
-        node_set_data(&list->ghost, data);
-        ASSERT_EQ(data, node_data(&list->ghost));
-    }
-
-    list_destroy(list);
-    
-    TEST_SUMMARIZE();
-}
-
 void null_argument_test() {
     TEST_HEAD(22);
 
@@ -92,6 +63,35 @@ void null_argument_test() {
         ASSERT_EQ(list_set_allocator(NULL), calloc);
     }
 
+    TEST_SUMMARIZE();
+}
+
+void initialized_empty_list_test() {
+    TEST_HEAD(11);
+
+    struct list *list = list_create();
+    EXPECT_NOT(list == NULL, "List allocation failed.");
+    {
+        ASSERT_EQ(list->size, 0);
+        ASSERT_EQ(list->ghost.next, &list->ghost);
+        ASSERT_EQ(list->ghost.prev, &list->ghost);
+    }
+    {
+        ASSERT_EQ(list->size,   list_size(list));
+        ASSERT_EQ(NULL, list_head(list));
+        ASSERT_EQ(NULL, list_tail(list));
+    }
+    {
+        ASSERT_EQ(&list->ghost,     node_next(&list->ghost));
+        ASSERT_EQ(&list->ghost,     node_prev(&list->ghost));
+        ASSERT_EQ(list->ghost.data, node_data(&list->ghost));
+        void *data = (void *)7;
+        node_set_data(&list->ghost, data);
+        ASSERT_EQ(data, node_data(&list->ghost));
+    }
+
+    list_destroy(list);
+    
     TEST_SUMMARIZE();
 }
 

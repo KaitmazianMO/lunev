@@ -72,14 +72,14 @@ size_t list_size(struct list *this) {
 }
 
 struct list_node *list_head(const struct list *this) {
-    if (this) {
+    if (this && SIZE(this)) {
         return HEAD(this);  
     }
     return NULL;
 }
 
 struct list_node *list_tail(const struct list *this) {
-    if (this) {
+    if (this && SIZE(this)) {
         return TAIL(this);
     }
     return NULL;
