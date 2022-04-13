@@ -16,4 +16,9 @@ do {                                                            \
         exit(EXIT_FAILURE);                                     \
 } while (0)
 
+#define CONF(...)                                               \
+do {                                                            \
+        INFO("Conf: " __VA_ARGS__);                             \
+} while(0)
+
 #endif // DEBUG_INCLUDED
