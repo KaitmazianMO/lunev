@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #define INFO(...)                                               \
 do {                                                            \
@@ -13,6 +15,7 @@ do {                                                            \
 #define ERROR(...)                                              \
 do {                                                            \
         INFO(__VA_ARGS__);                                      \
+        INFO("errno(%d): %s", errno, strerror(errno));          \
         exit(EXIT_FAILURE);                                     \
 } while (0)
 
