@@ -14,9 +14,9 @@
 
 #define DX           1e-4
 #define LOWER_BOUND  0
-#define UPPER_BOUND  1e4
+#define UPPER_BOUND  2e4
 
-double f(double x) { return pow(x, 1/x)*acos(sin(x)); }
+double f(double x) { return pow(x, 1/(x + 1))*acos(sin(x)); }
 
 int main(int argc, char *argv[])
 {

@@ -1,6 +1,6 @@
 TARGET = calc
-INCLUDE_FILES = debug.h calc_int.h
-SOURCE_FILES = main.c calc_int.c
+INCLUDE_FILES = debug.h calc_int.h cpu_conf.h
+SOURCE_FILES = main.c calc_int.c cpu_conf.c
 OBJECT_FILES = $(SOURCE_FILES:.c=.o)
 
 CFLAGS = -Wall -Werror -g -O0
