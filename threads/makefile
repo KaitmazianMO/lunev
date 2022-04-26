@@ -14,4 +14,4 @@ $(TARGET): $(OBJECT_FILES) $(INCLUDE_FILES)
 	$(CC) $(CFLAGS) $^ -o $(TARGET) $(DYN_LIBS)
 
 clean:
-	rm $(OBJECT_FILES) $(TARGET)
+	rm -f $(OBJECT_FILES) $(TARGET)

@@ -6,11 +6,15 @@
 #include <errno.h>
 #include <string.h>
 
+#ifdef MY_DEBUG
 #define INFO(...)                                               \
 do {                                                            \
         fprintf(stderr, __VA_ARGS__);                           \
         fprintf(stderr, "\n");                                  \
 } while (0)
+#else
+#define INFO(...) (void)0;
+#endif
 
 #define ERROR(...)                                              \
 do {                                                            \

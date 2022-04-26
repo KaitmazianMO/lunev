@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 
         double sum = calc_int_in_n_hreads(n_threads, f, LOWER_BOUND, UPPER_BOUND, DX);
 
-        INFO("Calcualted sum is %lg.", sum);
+        printf("result = %lg.\n", sum);
 
         INFO("==================================================");
 
