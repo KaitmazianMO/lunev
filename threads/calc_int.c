@@ -13,7 +13,7 @@
 #include "calc_int.h"
 #include "cpu_conf.h"
 
-#define L1_CAHE_LINE_SIZE (64)
+#define L1_CACHE_LINE_SIZE (64)
 #define alignas(n) __attribute__ ((aligned (n)))
 
 #define MAX(l, r) ((l) < (r) ? (r) : (l))
@@ -21,23 +21,28 @@
 struct calc_context {
         double lower_bound, upper_bound;
         double sum;
-} alignas(L1_CAHE_LINE_SIZE);
+} alignas(L1_CACHE_LINE_SIZE);
 
 static math_func F = NULL;
 static double DX = 0;
 
 static void *calc_routine(void *cacl_context_);
 
-static void split_range_into_contexts(struct calc_context *contexts, unsigned n, double from, double to);
+static struct calc_context *make_contexts(unsigned n_threads, unsigned n_cores,
+                                          double from, double to);
 
-static pthread_t *make_threads_and_place_on_cores(unsigned n_threads, unsigned n_cores,
-                                           unsigned threads_per_core, struct calc_context *cntxts);
+static pthread_t *make_threads(unsigned n_threads, unsigned n_cores,
+                        unsigned threads_per_core, struct calc_context *cntxts);
 
-double calc_int_in_n_hreads(unsigned n_threads, math_func f, double from, double to, double dx)
+static void split_range_into_contexts(struct calc_context *contexts, int64_t n,
+                                      double from, double to);
+
+double calc_int_in_n_hreads(unsigned n_threads, math_func f,
+                            double from, double to, double dx)
 {
         F = f;
         DX = dx;
-        
+
         struct cpu_conf conf;
         if (get_cpu_conf(&conf) != 0)
                 ERROR("Failed to get cpu info.");
@@ -53,15 +58,11 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f, double from, double
         INFO("n_workers = %d", n_workers);
 
         INFO("Making contexts.");
-        struct calc_context *contexts = aligned_alloc(conf.L1_cache_line_size, n_workers * sizeof(*contexts));
-        split_range_into_contexts(contexts, n_threads, from, to);
-        /* contexts for extra load */
-        for (int i = n_threads; i < conf.cores; ++i) {
-                contexts[i] = contexts[i % n_threads];
-        }  
+        struct calc_context *contexts = make_contexts(n_threads, conf.cores, from, to);
 
         INFO("Making threads.");
-        pthread_t *threads = make_threads_and_place_on_cores(n_threads, conf.cores, threads_per_core, contexts);
+        pthread_t *threads = make_threads(n_threads, conf.cores, threads_per_core, contexts);
+
         for (int i = 0; i < n_workers; ++i) {
                 if (errno = pthread_join(threads[i], NULL))
                         ERROR("Failed to join THREAD[%d].", i);
@@ -72,12 +73,28 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f, double from, double
                 sum += contexts[i].sum;
         }
 
-        free(contexts);        
+        free(contexts);
         free(threads);
         return sum;
 }
 
-void split_range_into_contexts(struct calc_context *contexts, unsigned n, double from, double to)
+struct calc_context *make_contexts(unsigned n_threads, unsigned n_cores,
+                                   double from, double to)
+{
+        const unsigned n_workers = MAX(n_threads, n_cores);
+        struct calc_context *contexts =
+                aligned_alloc(L1_CACHE_LINE_SIZE, n_workers * sizeof(contexts[0]));
+        if (contexts == NULL)
+                ERROR("Failed to allocate %u contexts.", n_workers);
+
+        split_range_into_contexts(contexts, n_threads, from, to);
+        for (unsigned i = n_threads; i < n_cores; ++i)
+                contexts[i] = contexts[i % n_threads];
+        return contexts;
+}
+
+void split_range_into_contexts(struct calc_context *contexts,
+                               int64_t n, double from, double to)
 {
         double section_size = (to - from) / n;
         double section_lower = from;
@@ -88,27 +105,37 @@ void split_range_into_contexts(struct calc_context *contexts, unsigned n, double
         }
 }
 
-pthread_t *make_threads_and_place_on_cores(unsigned n_threads, unsigned n_cores, 
-                                           unsigned threads_per_core, struct calc_context *cntxts)
+pthread_t *make_threads(unsigned n_threads, unsigned n_cores,
+                        unsigned threads_per_core, struct calc_context *cntxts)
 {
         int n_workers = MAX(n_threads, n_cores);
-        pthread_t *threads = aligned_alloc(L1_CAHE_LINE_SIZE, n_workers * sizeof(*threads));
+        pthread_t *threads = aligned_alloc(L1_CACHE_LINE_SIZE, n_workers * sizeof(*threads));
         if (threads == NULL)
                 ERROR("Failed to allocate threads.");
 
-        int logical_cores = threads_per_core * n_cores;
+        const unsigned n_logical_cores = n_cores * threads_per_core;
+        pthread_attr_t attr;
+        cpu_set_t cpu_set;
         for (int i = 0; i < n_workers; ++i) {
-                if (errno = pthread_create(threads + i, NULL, calc_routine, cntxts + i))
+                pthread_attr_init(&attr);
+                CPU_ZERO(&cpu_set);
+                CPU_SET(i*threads_per_core % n_logical_cores, &cpu_set);
+                if (errno = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set))
+                        ERROR("Failed to set attr[%d] affinity.", i);
+                if (errno = pthread_create(threads + i, &attr, calc_routine, cntxts + i))
                         ERROR("Failed to create thread[%d].", i);
-                if (i < n_threads) {
-                        cpu_set_t set;
-                        CPU_ZERO(&set);
-                        CPU_SET(i*threads_per_core % logical_cores, &set);
-                        if (errno = pthread_setaffinity_np(threads[i], sizeof(cpu_set_t), &set))
-                                ERROR("Failed to set thread[%d] affinity.", i);
-                }
+                pthread_attr_destroy(&attr);
         }
         return threads;
+}
+
+static double calc_int_on_range(double from, double to)
+{
+        double sum = 0;
+        for (double x = from; x < to; x += DX)
+                sum += F(x)*DX;
+
+        return sum;
 }
 
 void *calc_routine(void *cacl_context_)
@@ -116,9 +143,6 @@ void *calc_routine(void *cacl_context_)
         struct calc_context *cntx = (struct calc_context *)cacl_context_;
         double lower_bound = cntx->lower_bound;
         double upper_bound = cntx->upper_bound;
-        double sum = 0;
-        for (double x = lower_bound; x < upper_bound; x += DX)
-                sum += F(x)*DX;
-        cntx->sum = sum;
+        cntx->sum = calc_int_on_range(lower_bound, upper_bound);
         return NULL;
 }

@@ -16,7 +16,7 @@
 #define LOWER_BOUND  0
 #define UPPER_BOUND  2e4
 
-double f(double x) { return pow(x, 1/(x + 1))*acos(sin(x)); }
+double f(double x) { return x*cos(atan(x)); }
 
 int main(int argc, char *argv[])
 {

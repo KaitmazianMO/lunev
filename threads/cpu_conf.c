@@ -17,7 +17,7 @@ static int read_line_number(const char *line, int *n)
                 number_str++;
 
         if (number_str != line && number_str[-1] == '-')
-                --number_str; 
+                --number_str;
 
         return sscanf(number_str, "%d", n);
 }
@@ -42,7 +42,7 @@ int get_cpu_conf(struct cpu_conf *pconf)
             read_line_number(strstr(lscpu_dump, "Thread(s) per core:"), &threads_per_core) <= 0 ||
             read_line_number(strstr(lscpu_dump, "Core(s) per socket:"), &cores_per_sock) <= 0 ||
             read_line_number(strstr(lscpu_dump, "Socket(s):"), &sockets) <= 0)
-                return -1;        
+                return -1;
 
         free(lscpu_dump);
         fclose (flscpu);
