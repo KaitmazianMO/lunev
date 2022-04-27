@@ -14,9 +14,9 @@
 
 #define DX           1e-4
 #define LOWER_BOUND  0
-#define UPPER_BOUND  2e4
+#define UPPER_BOUND  1.5e4
 
-double f(double x) { return pow(x, 1/(x + 1))*acos(sin(x)); }
+double f(double x) { return x*cos(atan(x)); }
 
 int main(int argc, char *argv[])
 {
@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 
         double sum = calc_int_in_n_hreads(n_threads, f, LOWER_BOUND, UPPER_BOUND, DX);
 
-        INFO("Calcualted sum is %lg.", sum);
+        printf("result = %lg.\n", sum);
 
         INFO("==================================================");
 
