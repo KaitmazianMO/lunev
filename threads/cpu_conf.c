@@ -60,7 +60,7 @@ int get_cpu_conf(struct cpu_conf *pconf)
                             read_line_number(strstr(lscpu_dump, "Socket(s):"), &sockets) <= 0)
                                 return -1;
                         free(lscpu_dump);
-                        fclose (flscpu);
+                        pclose (flscpu);
                 }
         }
         pconf->threads = nthreads;
