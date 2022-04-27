@@ -57,8 +57,8 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f,
         CONF("sockets:            %ld", conf.sockets);
         CONF("L1_cache_line_size: %ld", conf.L1_cache_line_size);
 
-        if (conf.cores < n_threads)
-                n_threads = conf.cores;
+        if (conf.threads < n_threads)
+                n_threads = conf.threads;
         const int n_workers = MAX(n_threads, conf.cores);
         INFO("n_workers = %d", n_workers);
 
@@ -123,7 +123,7 @@ pthread_t *make_threads(unsigned n_threads, unsigned n_cores,
         cpu_set_t cpu_set;
         int ht_step = 0;
         for (int i = 0; i < n_workers; ++i) {
-                if (threads_per_core == 2 && n_cores < i)
+                if (threads_per_core == 2 && n_cores <= i)
                         ht_step = 1;
                 pthread_attr_init(&attr);
                 CPU_ZERO(&cpu_set);
