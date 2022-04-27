@@ -44,13 +44,18 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f,
         DX = dx;
 
         struct cpu_conf conf;
+        long threads_per_core;
         if (get_cpu_conf(&conf) != 0) {
                 INFO("Failed to get cpu info.");
                 conf.threads = get_nprocs();
-                conf.cores = conf.threads;
+#ifndef HT
+                threads_per_core = 1;
+#else
+                threads_per_core = 2;
+#endif
+                conf.cores = conf.threads / threads_per_core;
         }
 
-        long threads_per_core = conf.threads / conf.cores;
         CONF("threads:            %ld", conf.threads);
         CONF("cores:              %ld", conf.cores);
         CONF("threads_per_core:   %ld", threads_per_core);
