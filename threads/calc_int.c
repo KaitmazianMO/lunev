@@ -60,8 +60,6 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f,
         CONF("sockets:            %ld", conf.sockets);
         CONF("L1_cache_line_size: %ld", conf.L1_cache_line_size);
 
-        if (conf.threads < n_threads)
-                n_threads = conf.threads;
         const int n_workers = MAX(n_threads, conf.cores);
         INFO("n_workers = %d", n_workers);
 
