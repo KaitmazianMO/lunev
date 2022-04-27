@@ -14,7 +14,7 @@
 
 #define DX           1e-4
 #define LOWER_BOUND  0
-#define UPPER_BOUND  1.5e4
+#define UPPER_BOUND  2e4
 
 double f(double x) { return x*cos(atan(x)); }
 
