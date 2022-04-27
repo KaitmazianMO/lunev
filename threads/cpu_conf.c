@@ -7,9 +7,9 @@
 #include <sys/sysinfo.h>
 #include <unistd.h>
 
+#include "debug.h"
 #include "cpu_conf.h"
 
-#if 0
 static int read_line_number(const char *line, int *n)
 {
         if (!line)
@@ -24,43 +24,45 @@ static int read_line_number(const char *line, int *n)
 
         return sscanf(number_str, "%d", n);
 }
-#endif
 
 int get_cpu_conf(struct cpu_conf *pconf)
 {
         int nthreads = 1;
         int threads_per_core = 1;
         int sockets = 1;
- #if 0
-        FILE *flscpu = popen("lscpu -y", "r");
-        if (flscpu != NULL) {
-                char *lscpu_dump = NULL;
-                size_t dump_size = 0;
-                getdelim(&lscpu_dump, &dump_size, '\0', flscpu);
-                if (lscpu_dump == NULL)
+
+        if (access("/sys/devices/system/cpu/smt/active", F_OK ) == 0) {
+                INFO("File way.");
+                FILE *fht_active = fopen("/sys/devices/system/cpu/smt/active", "r");
+                if (fht_active == NULL)
                         return -errno;
 
-                if (read_line_number(strstr(lscpu_dump, "CPU(s):"), &nthreads) <= 0 ||
-                    read_line_number(strstr(lscpu_dump, "Thread(s) per core:"), &threads_per_core) <= 0 ||
-                    read_line_number(strstr(lscpu_dump, "Socket(s):"), &sockets) <= 0)
-                        return -1;
-                free(lscpu_dump);
-                fclose (flscpu);
+                int active = 0;
+                if (fscanf(fht_active, "%d", &active) < 0)
+                        return -errno;
+                if (active)
+                        threads_per_core = 2;
+                else
+                        threads_per_core = 1;
+                nthreads = get_nprocs();
         } else {
-#endif
-        FILE *fht_active = fopen("/sys/devices/system/cpu/smt/active", "r");
-        if (fht_active == NULL)
-                return -errno;
+                INFO("Another way.");
+                FILE *flscpu = popen("lscpu -y", "r");
+                if (flscpu != NULL) {
+                        char *lscpu_dump = NULL;
+                        size_t dump_size = 0;
+                        getdelim(&lscpu_dump, &dump_size, '\0', flscpu);
+                        if (lscpu_dump == NULL)
+                                return -errno;
 
-        int active = 0;
-        if (fscanf(fht_active, "%d", &active) < 0)
-                return -errno;
-        if (active)
-                threads_per_core = 2;
-        else
-                threads_per_core = 1;
-        nthreads = get_nprocs();
- 
+                        if (read_line_number(strstr(lscpu_dump, "CPU(s):"), &nthreads) <= 0 ||
+                            read_line_number(strstr(lscpu_dump, "Thread(s) per core:"), &threads_per_core) <= 0 ||
+                            read_line_number(strstr(lscpu_dump, "Socket(s):"), &sockets) <= 0)
+                                return -1;
+                        free(lscpu_dump);
+                        fclose (flscpu);
+                }
+        }
         pconf->threads = nthreads;
         pconf->cores = nthreads / threads_per_core;
         pconf->sockets = sockets;
