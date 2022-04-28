@@ -12,9 +12,6 @@
 
 static int read_line_number(const char *line, int *n)
 {
-        if (!line)
-                return -1;
-
         const char *number_str = line;
         while(!isdigit(*number_str))
                 number_str++;
@@ -25,47 +22,71 @@ static int read_line_number(const char *line, int *n)
         return sscanf(number_str, "%d", n);
 }
 
+static int get_cpu_conf_using_ht_active_file(struct cpu_conf *pconf)
+{
+        FILE *fht_active = fopen("/sys/devices/system/cpu/smt/active", "r");
+        if (fht_active == NULL) {
+                INFO("Can't open /sys/devices/system/cpu/smt/active.");
+                return -errno;
+        }
+        int active = 0;
+        fscanf(fht_active, "%d", &active);
+        pconf->threads_per_core = active ? 2 : 1;
+        pconf->nthreads = get_nprocs();
+        pconf->ncores = pconf->nthreads / pconf->threads_per_core;
+        pconf->L1_cache_line_size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
+        pconf->nsockets = -1; /* Have no idea how many sockets are there. */
+        return 0;
+}
+
+static int get_cpu_info_using_lscpu(struct cpu_conf *pconf)
+{
+        FILE *flscpu = popen("lscpu -y", "r");
+        if (flscpu == NULL) {
+                INFO("popen with lscpu failed.");
+                return -errno;
+        }
+
+        char *lscpu_dump = NULL;
+        size_t dump_size = 0;
+        getdelim(&lscpu_dump, &dump_size, '\0', flscpu);
+        if (lscpu_dump == NULL) {
+                INFO("Failed to read lscpu dump");
+                return -errno;
+        }
+
+        if (read_line_number(strstr(lscpu_dump, "CPU(s):"), &pconf->nthreads) <= 0 ||
+            read_line_number(strstr(lscpu_dump, "Thread(s) per core:"), &pconf->threads_per_core) <= 0 ||
+            read_line_number(strstr(lscpu_dump, "Socket(s):"), &pconf->nsockets) <= 0) {
+                INFO("Can't read number of cpus,threads or sockets");
+                return -1;
+        }
+        pconf->L1_cache_line_size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
+        pconf->ncores = pconf->nthreads / pconf->threads_per_core;
+        free(lscpu_dump);
+        pclose(flscpu);
+        return 0;
+}
+
+static void get_cpu_conf_default(struct cpu_conf *pconf)
+{
+        pconf->nthreads = get_nprocs();
+        pconf->threads_per_core = 2;
+        pconf->ncores = pconf->threads_per_core * pconf->nthreads;
+        pconf->L1_cache_line_size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
+        pconf->nsockets = -1;
+}
+
 int get_cpu_conf(struct cpu_conf *pconf)
 {
-        int nthreads = 1;
-        int threads_per_core = 1;
-        int sockets = 1;
-
         if (access("/sys/devices/system/cpu/smt/active", F_OK ) == 0) {
-                INFO("File way.");
-                FILE *fht_active = fopen("/sys/devices/system/cpu/smt/active", "r");
-                if (fht_active == NULL)
-                        return -errno;
-
-                int active = 0;
-                if (fscanf(fht_active, "%d", &active) < 0)
-                        return -errno;
-                if (active)
-                        threads_per_core = 2;
-                else
-                        threads_per_core = 1;
-                nthreads = get_nprocs();
+                if (get_cpu_conf_using_ht_active_file(pconf) == 0)
+                        return 0;
         } else {
-                INFO("Another way.");
-                FILE *flscpu = popen("lscpu -y", "r");
-                if (flscpu != NULL) {
-                        char *lscpu_dump = NULL;
-                        size_t dump_size = 0;
-                        getdelim(&lscpu_dump, &dump_size, '\0', flscpu);
-                        if (lscpu_dump == NULL)
-                                return -errno;
-
-                        if (read_line_number(strstr(lscpu_dump, "CPU(s):"), &nthreads) <= 0 ||
-                            read_line_number(strstr(lscpu_dump, "Thread(s) per core:"), &threads_per_core) <= 0 ||
-                            read_line_number(strstr(lscpu_dump, "Socket(s):"), &sockets) <= 0)
-                                return -1;
-                        free(lscpu_dump);
-                        pclose (flscpu);
-                }
+                if (get_cpu_info_using_lscpu(pconf) == 0)
+                        return 0;
         }
-        pconf->threads = nthreads;
-        pconf->cores = nthreads / threads_per_core;
-        pconf->sockets = sockets;
-        pconf->L1_cache_line_size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
-        return 0;
+
+        get_cpu_conf_default(pconf);
+        return -1;
 }

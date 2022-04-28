@@ -28,14 +28,16 @@ static double DX = 0;
 
 static void *calc_routine(void *cacl_context_);
 
-static struct calc_context *make_contexts(unsigned n_threads, unsigned n_cores,
-                                          double from, double to);
+static struct calc_context *make_contexts(unsigned n_threads, double from, double to,
+                                          const struct cpu_conf *pconf);
 
-static pthread_t *make_threads(unsigned n_threads, unsigned n_cores,
-                        unsigned threads_per_core, struct calc_context *cntxts);
+static pthread_t *make_threads(unsigned n_threads, struct calc_context *cntxts,
+                               const struct cpu_conf *pconf);
 
 static void split_range_into_contexts(struct calc_context *contexts, int64_t n,
                                       double from, double to);
+
+static void cpu_info_dump(struct cpu_conf *pconf);
 
 double calc_int_in_n_hreads(unsigned n_threads, math_func f,
                             double from, double to, double dx)
@@ -44,30 +46,16 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f,
         DX = dx;
 
         struct cpu_conf conf;
-        if (get_cpu_conf(&conf) != 0) {
-                INFO("Failed to get cpu info.");
-                conf.threads = get_nprocs();
-#ifndef HT
-                conf.cores = conf.threads / 2;
-#else
-                conf.cores = conf.threads;
-#endif
-        }
-        long threads_per_core = conf.threads / conf.cores;
-        CONF("threads:            %ld", conf.threads);
-        CONF("cores:              %ld", conf.cores);
-        CONF("threads_per_core:   %ld", threads_per_core);
-        CONF("sockets:            %ld", conf.sockets);
-        CONF("L1_cache_line_size: %ld", conf.L1_cache_line_size);
+        if (get_cpu_conf(&conf) != 0)
+                INFO("Failed to get cpu info. Using default info.");
+        cpu_info_dump(&conf);
 
-        const int n_workers = MAX(n_threads, conf.cores);
-        INFO("n_workers = %d", n_workers);
+        const int n_workers = MAX(n_threads, conf.ncores);
+        INFO("%d thread(s) will be launched.", n_workers);
 
-        INFO("Making contexts.");
-        struct calc_context *contexts = make_contexts(n_threads, conf.cores, from, to);
+        struct calc_context *contexts = make_contexts(n_threads, from, to, &conf);
 
-        INFO("Making threads.");
-        pthread_t *threads = make_threads(n_threads, conf.cores, threads_per_core, contexts);
+        pthread_t *threads = make_threads(n_threads, contexts, &conf);
 
         for (int i = 0; i < n_workers; ++i) {
                 if (errno = pthread_join(threads[i], NULL))
@@ -84,17 +72,18 @@ double calc_int_in_n_hreads(unsigned n_threads, math_func f,
         return sum;
 }
 
-struct calc_context *make_contexts(unsigned n_threads, unsigned n_cores,
-                                   double from, double to)
+struct calc_context *make_contexts(unsigned n_threads, double from, double to,
+                                   const struct cpu_conf *pconf)
 {
-        const unsigned n_workers = MAX(n_threads, n_cores);
+        const unsigned n_workers = MAX(n_threads, pconf->ncores);
         struct calc_context *contexts =
                 aligned_alloc(L1_CACHE_LINE_SIZE, n_workers * sizeof(contexts[0]));
         if (contexts == NULL)
                 ERROR("Failed to allocate %u contexts.", n_workers);
 
         split_range_into_contexts(contexts, n_threads, from, to);
-        for (unsigned i = n_threads; i < n_cores; ++i)
+        /* Making extra load for linear scaling. */
+        for (unsigned i = n_threads; i < pconf->ncores; ++i)
                 contexts[i] = contexts[i % n_threads];
         return contexts;
 }
@@ -111,29 +100,34 @@ void split_range_into_contexts(struct calc_context *contexts,
         }
 }
 
-pthread_t *make_threads(unsigned n_threads, unsigned n_cores,
-                        unsigned threads_per_core, struct calc_context *cntxts)
+void thread_init(pthread_t *ptread, int idx, struct calc_context *cntxt,
+                 const struct cpu_conf *pconf)
 {
-        int n_workers = MAX(n_threads, n_cores);
+        pthread_attr_t attr;
+        cpu_set_t cpu_set;
+        int ht_idx = 0;
+        if (pconf->threads_per_core == 2 && idx % pconf->ncores == 0)
+                ht_idx = (idx / pconf->ncores) % 2;
+        pthread_attr_init(&attr);
+        CPU_ZERO(&cpu_set);
+        CPU_SET(idx*pconf->threads_per_core % pconf->nthreads + ht_idx, &cpu_set);
+        if (errno = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set))
+                ERROR("Failed to set attr[%d] affinity.", idx);
+        if (errno = pthread_create(ptread, &attr, calc_routine, cntxt))
+                ERROR("Failed to create thread[%d].", idx);
+        pthread_attr_destroy(&attr);       
+}
+
+pthread_t *make_threads(unsigned n_threads, struct calc_context *cntxts,
+                               const struct cpu_conf *pconf)
+{
+        int n_workers = MAX(n_threads, pconf->ncores);
         pthread_t *threads = aligned_alloc(L1_CACHE_LINE_SIZE, n_workers * sizeof(*threads));
         if (threads == NULL)
                 ERROR("Failed to allocate threads.");
 
-        const unsigned n_logical_cores = n_cores * threads_per_core;
-        pthread_attr_t attr;
-        cpu_set_t cpu_set;
-        int ht_step = 0;
         for (int i = 0; i < n_workers; ++i) {
-                if (threads_per_core == 2 && n_cores <= i)
-                        ht_step = 1;
-                pthread_attr_init(&attr);
-                CPU_ZERO(&cpu_set);
-                CPU_SET(i*threads_per_core % n_logical_cores + ht_step, &cpu_set);
-                if (errno = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set))
-                        ERROR("Failed to set attr[%d] affinity.", i);
-                if (errno = pthread_create(threads + i, &attr, calc_routine, cntxts + i))
-                        ERROR("Failed to create thread[%d].", i);
-                pthread_attr_destroy(&attr);
+                thread_init(threads + i, i, cntxts + i, pconf);
         }
         return threads;
 }
@@ -154,4 +148,13 @@ void *calc_routine(void *cacl_context_)
         double upper_bound = cntx->upper_bound;
         cntx->sum = calc_int_on_range(lower_bound, upper_bound);
         return NULL;
+}
+
+void cpu_info_dump(struct cpu_conf *pconf)
+{
+        CONF("threads:            %d", pconf->nthreads);
+        CONF("cores:              %d", pconf->ncores);
+        CONF("threads_per_core:   %d", pconf->threads_per_core);
+        CONF("sockets:            %d", pconf->nsockets);
+        CONF("L1_cache_line_size: %d", pconf->L1_cache_line_size);
 }
