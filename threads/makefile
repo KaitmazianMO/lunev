@@ -15,8 +15,5 @@ all: $(TARGET)
 $(TARGET): $(OBJECT_FILES) $(INCLUDE_FILES)
 	$(CC) $(CFLAGS) $^ -o $(TARGET) $(DYN_LIBS)
 
-$(HT_RAGET): $(OBJECT_FILES) $(INCLUDE_FILES)
-	$(CC) $(CFLAGS) -D$(HT_FLAG) $^ -o $(TARGET) $(DYN_LIBS)
-
 clean:
 	rm -f $(OBJECT_FILES) $(TARGET)
