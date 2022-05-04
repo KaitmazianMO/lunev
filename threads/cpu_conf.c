@@ -79,13 +79,12 @@ static void get_cpu_conf_default(struct cpu_conf *pconf)
 
 int get_cpu_conf(struct cpu_conf *pconf)
 {
-        if (access("/sys/devices/system/cpu/smt/active", F_OK ) == 0) {
+        if (access("/sys/devices/system/cpu/smt/active", F_OK ) == 0)
                 if (get_cpu_conf_using_ht_active_file(pconf) == 0)
                         return 0;
-        } else {
-                if (get_cpu_info_using_lscpu(pconf) == 0)
-                        return 0;
-        }
+        
+        if (get_cpu_info_using_lscpu(pconf) == 0)
+                return 0;
 
         get_cpu_conf_default(pconf);
         return -1;
