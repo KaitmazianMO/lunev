@@ -132,10 +132,12 @@ int main(int argc, char *argv[])
         int ret = 0;
         for (int i = 0; i < n_clients; ++i) {
                 ret = recv(clients[i].sk, str_sum, sizeof(str_sum), 0);
-                if (ret == -1)
-                        ERROR("Can't receive sum from client[%d].", i);
-                else if (ret == 0)
-                        ERROR("Connection aborted.");
+                if (ret == -1) {
+                        if (errno == EHOSTUNREACH)
+                                ERROR("Lost TCP connection with client[%d].", i);
+                        else
+                                ERROR("Can't receive sum from client[%d].", i);
+                }
 
                 sum += strtod(str_sum, NULL);
                 if (errno != 0)
