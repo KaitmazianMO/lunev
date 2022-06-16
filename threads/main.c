@@ -10,7 +10,7 @@
 #include <sys/sysinfo.h>
 
 #include "debug.h"
-#include "calc_int.h"
+#include "integral.h"
 
 #define DX           1e-4
 #define LOWER_BOUND  0
@@ -21,21 +21,24 @@ double f(double x) { return x*cos(atan(x)); }
 int main(int argc, char *argv[])
 {
         if (argc != 2)
-                ERROR("Usage: %s <number-of-threads>", argv[0]);
-
-        INFO("==================================================");
+                ERROR("Usage: %s <factor>", argv[0]);
 
         errno = 0;
         char *endptr = NULL;
-        const int n_threads = strtol(argv[1], &endptr, 10);
-        if (n_threads <= 0 || *endptr != '\0' || errno)
+        const int factor = strtol(argv[1], &endptr, 10);
+        if (factor <= 0 || *endptr != '\0' || errno)
                 ERROR("Invalid number format.");
 
-        double sum = calc_int_in_n_hreads(n_threads, f, LOWER_BOUND, UPPER_BOUND, DX);
+        struct Integral integral = {};
+        struct Range range = { .from = LOWER_BOUND, .to = UPPER_BOUND};
+        int_init(&integral, f, &range, DX);
 
-        printf("result = %lg.\n", sum);
+        int ret = int_integrate(&integral, factor);
+        if (ret == -1) {
+                ERROR("Can't calculate integral sum.");
+        }
 
-        INFO("==================================================");
+        printf("result = %lg.\n", integral.sum);
 
         return 0;
 }

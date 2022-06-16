@@ -2,10 +2,11 @@
 #define CPU_CONF_H_INCLUDED
 
 struct cpu_conf {
-        long sockets;
-        long cores;
-        long threads;
-        long L1_cache_line_size;
+        int nsockets;
+        int ncores;
+        int nthreads;
+        int threads_per_core;
+        int L1_cache_line_size;
 };
 
 int get_cpu_conf(struct cpu_conf *c);

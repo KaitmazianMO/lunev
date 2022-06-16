@@ -1,0 +1,6 @@
+#ifndef CONF_H_INCLUDED
+#define CONF_H_INCLUDED
+
+#define L1_CACHE_LINE_SIZE 64
+
+#endif // CONF_H_INCLUDED
